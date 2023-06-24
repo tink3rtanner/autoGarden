@@ -103,7 +103,7 @@ int io_auto_water=0;
 int io_water_now=0;
 int io_moisture_setpoint=0;
 static unsigned long lasttime_water = 0;      // last time you watered
-const unsigned long wateringInterval = 4000000L; //40000L;4000000L(1hr) - short for testing. First water waits interval //watering interval. 4M ms = 64 mins
+const unsigned long wateringInterval = 600000L; //10 mins. 40000L;4000000L(1hr) - short for testing. First water waits interval //watering interval. 4M ms = 64 mins
 
 ////////////////////
 // S  E  T  U  P  //
@@ -335,7 +335,7 @@ void water_plants()
   Serial.println("things are getting wet...");
   //else if (moisture1_value > 55)  //original code only stops watering once wet
   //Water Flow:
-  delay(5000); //one second
+  delay(20000); //couple seconds
   
   //close the relay
   Serial.println("Water stopping.");
