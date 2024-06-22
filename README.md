@@ -1,4 +1,3 @@
-
 # Auto Garden README
 
 ## Overview
@@ -23,11 +22,22 @@ The Auto Garden system automates watering plants by monitoring soil moisture lev
 
 ### WiFi Configuration
 
-Update the following variables with your network credentials:
+For improved security, the network credentials are stored in a separate header file. Update the `wifi_config.h` file with your network credentials to connect to WiFi. This file should define the `ssid` and `pass` variables used by the main program.
+
+Example structure of `wifi_config.h`:
+
 ```cpp
-char ssid[] = "_Josh";  // Your network SSID
-char pass[] = "blueberries";  // Your network password
+// wifi_config.h
+#ifndef WIFI_CONFIG_H
+#define WIFI_CONFIG_H
+
+const char ssid[] = "YourNetworkSSID";  // Your network SSID
+const char pass[] = "YourNetworkPassword";  // Your network password
+
+#endif
 ```
+
+Ensure this file is included at the beginning of your main program file to access these credentials.
 
 ### Real-Time Clock Initialization
 
