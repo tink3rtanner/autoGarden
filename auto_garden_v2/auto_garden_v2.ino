@@ -20,14 +20,18 @@ RTC_DS1307 RTC;
 
 #include "WiFiEsp.h"
 
+// Include the WiFi configuration header
+#include "wifi_config.h"  // Add this line at the beginning of your includes
+
 ////////////////////////////////
 // V  A  R  I  A  B  L  E  S  //
 ////////////////////////////////
 
 
 // WIFI SETUP
-char ssid[] = "_Josh";            // your network SSID (name)
-char pass[] = "blueberries";        // your network password
+// Remove or comment out the hardcoded WiFi credentials
+// char ssid[] = "_Josh";            // your network SSID (name)
+// char pass[] = "blueberries";        // your network password
 int status = WL_IDLE_STATUS;     // the Wifi radio's status
 // Initialize the Ethernet client object
 WiFiEspClient client;
@@ -133,7 +137,7 @@ void setup()
   while ( status != WL_CONNECTED) {
     Serial.print("Attempting to connect to WPA SSID: ");
     Serial.println(ssid);
-    // Connect to WPA/WPA2 network
+    // Connect to WPA/WPA2 network. Use variables from the header file.
     status = WiFi.begin(ssid, pass);
     Serial.println("You're connected to the network");
   }
