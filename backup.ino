@@ -1,5 +1,3 @@
-#include <Arduino.h>
-#line 1 "/Users/joshpriebe/Documents/AI/autoGarden/auto_garden_v2/auto_garden_v2.ino"
 /*
   AUTO GARDEN
 
@@ -113,33 +111,10 @@ int io_moisture_setpoint = 0;
 static unsigned long lasttime_water = 0;      // last time you watered
 const unsigned long wateringInterval = 600000L; //10 mins. 40000L;4000000L(1hr) - short for testing. First water waits interval //watering interval. 4M ms = 64 mins
 
-// Add these function prototypes before setup()
-void read_value();
-void should_water();
-void water_plants();
-void httpPostRequestAdafeed(int value, String feed);
-int httpGetRequest(String feed, int maxRetries = 3);
-void httpPostRequestIFTTT(String event);
-void printWifiStatus();
-String formatTime(unsigned long milliseconds);
-
-// At the top of your file, add these global variables
-unsigned long lastWifiCheck = 0;
-const unsigned long wifiCheckInterval = 30000; // Check WiFi every 30 seconds
-
 ////////////////////
 // S  E  T  U  P  //
 ////////////////////
 
-#line 132 "/Users/joshpriebe/Documents/AI/autoGarden/auto_garden_v2/auto_garden_v2.ino"
-void setup();
-#line 193 "/Users/joshpriebe/Documents/AI/autoGarden/auto_garden_v2/auto_garden_v2.ino"
-void loop();
-#line 487 "/Users/joshpriebe/Documents/AI/autoGarden/auto_garden_v2/auto_garden_v2.ino"
-int httpGetRequest(String feed, int maxRetries);
-#line 702 "/Users/joshpriebe/Documents/AI/autoGarden/auto_garden_v2/auto_garden_v2.ino"
-void checkWiFiConnection();
-#line 132 "/Users/joshpriebe/Documents/AI/autoGarden/auto_garden_v2/auto_garden_v2.ino"
 void setup()
 {
   // initialize serial for debugging
@@ -159,24 +134,17 @@ void setup()
   }
 
   // attempt to connect to WiFi network
-  int attempts = 0;
-  while (status != WL_CONNECTED && attempts < 10) {
-    Serial.print("Attempt ");
-    Serial.print(attempts + 1);
-    Serial.print(": Connecting to WPA SSID: ");
+  while ( status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to WPA SSID: ");
     Serial.println(ssid);
     // Connect to WPA/WPA2 network. Use variables from the header file.
     status = WiFi.begin(ssid, pass);
-    delay(10000); // Wait 10 seconds between attempts
-    attempts++;
+    Serial.println("You're connected to the network");
   }
 
-  if (status == WL_CONNECTED) {
-    Serial.println("You're connected to the network");
-    printWifiStatus();
-  } else {
-    Serial.println("Failed to connect to the network after 10 attempts");
-  }
+
+  printWifiStatus();
+
 
   //other stuff
   delay(2000);
@@ -203,12 +171,6 @@ void setup()
 
 void loop()   // MAIN LOOP
 {
-  // Check WiFi connection periodically
-  if (millis() - lastWifiCheck > wifiCheckInterval) {
-    checkWiFiConnection();
-    lastWifiCheck = millis();
-  }
-
   delay(2000);
   Serial.println("LOOP");
   read_value();
@@ -233,20 +195,16 @@ void loop()   // MAIN LOOP
     //POST Moisture 2
     httpPostRequestAdafeed(moisture2_value, "soil-moisture2");
 
-    //POST Moisture 3
-    httpPostRequestAdafeed(moisture3_value, "soil-moisture3");
-
-
     //POST Bucket Water Levle (Moisture 4)
-    //httpPostRequestAdafeed(moisture4_value, "water-bucket-level");
+    httpPostRequestAdafeed(moisture4_value, "water-bucket-level");
 
     // GET AUTO GARDEN STATE
     delay(500);
-    //io_auto_water = httpGetRequest("auto-water", 3);
+    io_auto_water = httpGetRequest("auto-water");
     delay(500);
-    //io_water_now = httpGetRequest("water-now", 3);
+    io_water_now = httpGetRequest("water-now");
     delay(500);
-    //io_moisture_setpoint = httpGetRequest("moisture-setpoint", 3);
+    io_moisture_setpoint = httpGetRequest("moisture-setpoint");
 
 
     // LOG GONNECTION. Already doing this in http****request? no harm you're already here
@@ -268,14 +226,13 @@ void loop()   // MAIN LOOP
 
   // WATER BUCKET LEVEL
 
-  if (moisture4_value > 10000) { //100 is better, 10000 to basically disable it.
+  if (moisture4_value > 100) {
     Serial.println("Water level high. Turning off dehumidifier");
     //Water Level High, turn of dehumidifier
     if (millis() - lastConnectionTimeIFTTT > postingIntervalIFTTT) {
       
-      // httpPostRequestIFTTT("Dehumidifier_off");
-      // HTTP call to IFTTT webhook
-      Serial.println("Water level high. Here's where you would turn off dehumidifier via IFTTT webhook.");
+      httpPostRequestIFTTT("Dehumidifier_off");
+      //HTTP call to IFTTT webhook
     }
   }
   else {
@@ -363,17 +320,13 @@ void should_water()
 
   //AUTO WATER
 
-  unsigned long timeSinceLastWater = millis() - lasttime_water;
-  String formattedTimeSinceLastWater = formatTime(timeSinceLastWater);
-  String formattedWateringInterval = formatTime(wateringInterval);
-
   Serial.print("Time since last water: ");
-  Serial.println(formattedTimeSinceLastWater);
+  Serial.println(millis() - lasttime_water);
   Serial.print("Watering Interval: ");
-  Serial.println(formattedWateringInterval);
+  Serial.println(wateringInterval);
 
   //If (haven't watered recently) and (auto water on) and (mosture value below setpoint)
-  if ((timeSinceLastWater > wateringInterval) && (auto_water == 1) && (moisture1_value < moisture_setpoint)) {
+  if (((millis() - lasttime_water) > wateringInterval) && (auto_water == 1) && (moisture1_value < moisture_setpoint)) {
     Serial.println("Auto Water Triggered");
     water_now = 1;
     httpPostRequestAdafeed(water_now, "water-now"); //send to server
@@ -444,24 +397,17 @@ void water_plants()
 // and POSTS to an IO feed
 void httpPostRequestAdafeed(int value, String feed)
 {
+
   // close any connection before send a new request
+  // this will free the socket on the WiFi shield
   client.stop();
   char server[] = "io.adafruit.com";
 
   // prep value to send in data
   Serial.println(value);
   String data = "{\n\"value\": " + String(value) + "\n}";
+  Serial.println(data);
 
-  Serial.println("Preparing to send POST request to Adafruit IO");
-  Serial.print("Server: ");
-  Serial.println(server);
-  Serial.print("Feed: ");
-  Serial.println(feed);
-  Serial.print("Data to send: ");
-  // Remove first and last characters, then manually replace newlines
-  String printData = data.substring(1, data.length() - 1);
-  printData.replace('\n', ' ');
-  Serial.println(printData);
 
   // if there's a successful connection
   if (client.connect(server, 80)) {
@@ -479,10 +425,9 @@ void httpPostRequestAdafeed(int value, String feed)
     client.println(); // end http header
     client.println(data);
 
-    Serial.println("POST request sent. Waiting for response...");
-
     // note the time that the connection was made
     lastConnectionTime = millis();
+
   }
   else {
     // if you couldn't make a connection
@@ -495,119 +440,126 @@ void httpPostRequestAdafeed(int value, String feed)
 // this method makes a HTTP connection to the server
 // and GETs an IO feed value
 // returns: value(int) if found or -1 if not
-int httpGetRequest(String feed, int maxRetries)
+int httpGetRequest(String feed)
 {
-  for (int retry = 0; retry < maxRetries; retry++) {
-    // Reset ESP8266 module
-    WiFi.reset();
-    delay(1000);
 
-    // Reconnect to WiFi if necessary
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Reconnecting to WiFi...");
-      WiFi.begin(ssid, pass);
-      unsigned long startAttemptTime = millis();
-      while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
-        delay(500);
-        Serial.print(".");
+  // close any connection before send a new request
+  // this will free the socket on the WiFi shield
+  client.stop();
+  char server[] = "io.adafruit.com";
+
+
+  String response = "";
+  String line = "";
+  //char c;
+  String val = "";
+  int charcount = 0;
+  int foundresp = 0;
+  int quit = 0;
+
+  // if there's a successful connection
+  if (client.connect(server, 80)) {
+    Serial.println("Connection Successful.");
+    //Serial.println("Client Available? " + client.available());
+    Serial.println("Sending HTTP GET:");
+    String getstring = "GET /api/v2/jpriebe/feeds/" + feed + "/data?limit=1 HTTP/1.1";
+    Serial.println(getstring);
+
+    // send the HTTP GET request
+    client.println(getstring);
+    client.println(F("Host: io.adafruit.com"));
+    client.println(F("X-AIO-Key: 8c039146eedd4d65a83333349cbdab74"));
+    client.println(F("Connection: close"));
+    client.println(); // end http header
+    delay(110); //Need this delay to give server time to respond. 50-300 seems ok.
+    //100/keep-alive OK
+    //50/close OK ish
+    //60 is good for auto-water and water_now but not moisture-setpoint for some reason
+    //110 seems ok?
+
+    //while(client.connected()) {
+    while ((client.connected()) && (quit == 0)) { //client.available checks if there are bytes to read
+      char c = client.read();
+      //response.concat(c);
+      //Serial.print(c);
+      if (foundresp == 1) { //if body flag is on
+        response.concat(c);
       }
-      if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("Failed to connect to WiFi");
-        continue;
+      if (c == 91) { //set body flag for [
+        //Serial.println("FOUND!!!");
+        foundresp = 1;
       }
-      Serial.println("Connected to WiFi");
+      else if (c == 93) { //close body flag for ]
+        foundresp = 0;
+        quit = 1;
+      }
+
+
+      charcount++;
+      //delay(1);
     }
 
+    Serial.println("Done. Disconnecting");
     client.stop();
-    char server[] = "io.adafruit.com";
 
-    String response = "";
-    String line = "";
-    String val = "";
-    int charcount = 0;
-    int foundresp = 0;
-    int quit = 0;
+    Serial.println("");
+    Serial.println("SAVED BODY: ");
+    Serial.print("character count: ");
+    Serial.println(charcount);
+    Serial.print("saved response length: ");
+    Serial.println(response.length());
+    Serial.println(response);
+    Serial.println("");
+    Serial.println("END. ");
+    Serial.println("");
 
-    // if there's a successful connection
-    if (client.connect(server, 80)) {
-      Serial.println("Connection Successful.");
-      Serial.println("Sending HTTP GET:");
-      String getstring = "GET /api/v2/jpriebe/feeds/" + feed + "/data?limit=1 HTTP/1.1";
-      Serial.println(getstring);
+    // note the time that the connection was made
+    lastConnectionTime = millis();
+    //    Serial.println("Disconnected");
 
-      // send the HTTP GET request
-      client.println(getstring);
-      client.println(F("Host: io.adafruit.com"));
-      client.println(F("X-AIO-Key: 8c039146eedd4d65a83333349cbdab74"));
-      client.println(F("Connection: close"));
-      client.println(); // end http header
-      delay(110); //Need this delay to give server time to respond. 50-300 seems ok.
+    //read response and extract value
 
-      while ((client.connected()) && (quit == 0)) { //client.available checks if there are bytes to read
-        char c = client.read();
-        if (foundresp == 1) { //if body flag is on
-          response.concat(c);
-        }
-        if (c == 91) { //set body flag for [
-          foundresp = 1;
-        }
-        else if (c == 93) { //close body flag for ]
-          foundresp = 0;
-          quit = 1;
-        }
+    Serial.print("Finding Value: ");
+    Serial.println(response.indexOf("value"));
 
-        charcount++;
-      }
 
-      Serial.println("Done. Disconnecting");
-      client.stop();
+    //end value
+    int startdig = 0;
+    int enddig = 0;
 
-      Serial.println("");
-      Serial.println("SAVED BODY: ");
-      Serial.print("character count: ");
-      Serial.println(charcount);
-      Serial.print("saved response length: ");
-      Serial.println(response.length());
-      Serial.println(response);
-      Serial.println("");
-      Serial.println("END. ");
-      Serial.println("");
+    //find location of value, flexible for different number of digits
+    startdig = response.indexOf("value") + 8;
+    enddig = response.indexOf("\",", startdig + 1); //skip over first parenth
 
-      // note the time that the connection was made
-      lastConnectionTime = millis();
 
-      //read response and extract value
+    //Serial.print("Start Digit:");
+    //Serial.println(startdig);
 
-      Serial.print("Finding Value: ");
-      Serial.println(response.indexOf("value"));
+    //
+    //    Serial.print("End Digit:");
+    //    Serial.println(enddig);
+    //
+    //    Serial.print("Extracted Value:");
+    //    Serial.println(response.substring(startdig,enddig));
 
-      //end value
-      int startdig = 0;
-      int enddig = 0;
 
-      //find location of value, flexible for different number of digits
-      startdig = response.indexOf("value") + 8;
-      enddig = response.indexOf("\",", startdig + 1); //skip over first parenth
-
-      //if value isn't found
-      if (response.indexOf("value") == -1) {
-        Serial.println("ERROR: No return value");
-        return -1;
-      }//else if value is found, return
-      else {
-        val = response.substring(startdig, enddig); //ASSUMES 2 digit
-        Serial.println("VALUE: " + feed + ": " + val);
-        return val.toInt();
-      }
-    }
+    //if value isn't found
+    if (response.indexOf("value") == -1) {
+      Serial.println("ERROR: No return value");
+      return -1;
+    }//else if value is found, return
     else {
-      // if you couldn't make a connection
-      Serial.println("Connection failed");
+      val = response.substring(startdig, enddig); //ASSUMES 2 digit
+      Serial.println("VALUE: " + feed + ": " + val);
+      return val.toInt();
     }
-  }
 
-  // If all retries failed
-  return -1;
+
+  }
+  else {
+    // if you couldn't make a connection
+    Serial.println("Connection failed");
+  }
 }
 
 
@@ -670,10 +622,6 @@ void httpPostRequestIFTTT(String event)
 
 void printWifiStatus()
 {
-  // Print the current WiFi status
-  Serial.print("WiFi status: ");
-  Serial.println(WiFi.status());
-
   // print the SSID of the network you're attached to
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
@@ -685,67 +633,13 @@ void printWifiStatus()
 
   // print the received signal strength
   long rssi = WiFi.RSSI();
-  Serial.print("Signal strength (RSSI): ");
+  Serial.print("Signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
 
-  // Print MAC address
-  byte mac[6];
-  WiFi.macAddress(mac);
-  Serial.print("MAC address: ");
-  for (int i = 0; i < 6; i++) {
-    Serial.print(mac[i], HEX);
-    if (i < 5) Serial.print(":");
-  }
-  Serial.println();
 
-  // Print gateway IP
-  IPAddress gateway = WiFi.gatewayIP();
-  Serial.print("Gateway IP: ");
-  Serial.println(gateway);
 
-  // Print subnet mask
-  IPAddress subnet = WiFi.subnetMask();
-  Serial.print("Subnet mask: ");
-  Serial.println(subnet);
-}
-
-void checkWiFiConnection() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi connection lost. Reconnecting...");
-    WiFi.disconnect();
-    delay(1000);
-    WiFi.begin(ssid, pass);
-    
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-      delay(500);
-      Serial.print(".");
-      attempts++;
-    }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("Reconnected to WiFi");
-    } else {
-      Serial.println("Failed to reconnect to WiFi");
-    }
-  }
-}
-
-String formatTime(unsigned long milliseconds) {
-  unsigned long seconds = milliseconds / 1000;
-  unsigned long minutes = seconds / 60;
-  unsigned long hours = minutes / 60;
-  seconds %= 60;
-  minutes %= 60;
-
-  String result = "";
-  if (hours > 0) {
-    result += String(hours) + "h ";
-  }
-  if (minutes > 0 || hours > 0) {
-    result += String(minutes) + "m ";
-  }
-  result += String(seconds) + "s";
-  return result;
+  ///REFERENCES
+  // spec sheet: https://www.elecrow.com/download/product/AAK90039K/Automatic_Smart_Plant_Watering_Kit_User%20Manual_v2.2.pdf
+  // I2C is available for more sensor data, but it has to be another chip that speaks i2c
 }

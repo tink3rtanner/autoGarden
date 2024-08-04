@@ -32,5 +32,4 @@
  /Users/joshpriebe/Documents/Arduino/libraries/WiFiEsp/src/utility/RingBuffer.h \
  /Users/joshpriebe/Documents/Arduino/libraries/WiFiEsp/src/utility/RingBuffer.h \
  /Users/joshpriebe/Documents/Arduino/libraries/WiFiEsp/src/utility/debug.h \
- /Users/joshpriebe/Documents/AI/autoGarden/build/sketch/wifi_config.h \
- /Users/joshpriebe/Library/Arduino15/packages/arduino/hardware/avr/1.8.6/cores/arduino/HardwareSerial.h
+ /Users/joshpriebe/Documents/AI/autoGarden/build/sketch/wifi_config.h

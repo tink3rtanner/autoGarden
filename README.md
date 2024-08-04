@@ -82,3 +82,5 @@ Main logic loop, includes:
 ## References
 
 - [Auto Garden User Manual](https://www.elecrow.com/download/product/AAK90039K/Automatic_Smart_Plant_Watering_Kit_User%20Manual_v2.2.pdf)
+
+- [Elecrow Arduino Automatic Smart Plant Watering Kit (Updated)](https://www.elecrow.com/arduino-automatic-smart-plant-watering-kit.html)
