@@ -1,5 +1,9 @@
 {
     "sketch": "auto_garden_v2/auto_garden_v2.ino",
-    "configuration": "BoardModel=primo,xtal=80,vt=flash,exception=disabled,stacksmash=disabled,ssl=all,mmu=3232,non32xfer=fast,eesz=4M2M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200",
-    "board": "esp8266:esp8266:arduino-esp8266"
+    "board": "arduino:avr:leonardo",
+    "port": "/dev/tty.usbmodem101",
+    "output": "/Users/joshpriebe/Documents/AI/autoGarden/build",
+    "programmer": "arduinoasisp",
+    "configFile": "~/.arduino15/arduino-cli.yaml",
+    "verbose": true
 }
