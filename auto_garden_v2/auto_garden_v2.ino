@@ -39,12 +39,12 @@ WiFiEspClient client;
 // IO POST SETUP
 char server[] = "io.adafruit.com";
 
-unsigned long lastConnectionTime = 0;         // last time you connected to the adafruit.io server, in milliseconds (GET AND POST)
-unsigned long lastConnectionTimeIFTTT = 9999999;         // last time you connected to the ifttt server, in milliseconds (GET AND POST)
-const unsigned long postingInterval = 10000L; // delay between http updates, in milliseconds. L forces long
-const unsigned long postingIntervalIFTTT = 100000L; // delay between http updates, in milliseconds. L forces long
-static unsigned long currentMillis_send = 0;  // dont think this one is used
-static unsigned long Lasttime_send = 0;       // last time you sent, used?
+unsigned long lastConnectionTime = 0;         // last time you connected to the adafruit.io server, in milliseconds (GET AND POST) (0 ms = never connected)
+unsigned long lastConnectionTimeIFTTT = 9999999;         // last time you connected to the ifttt server, in milliseconds (GET AND POST). 9999999 is ~2.8 hours, simulating "forever ago"
+const unsigned long postingInterval = 10000L; // 1 hour in milliseconds - delay between http updates, in milliseconds. L forces long (3600000L ms = 1 hour (effectively stopping HTTP requests).  Typically 10000L ms = 10 seconds)
+const unsigned long postingIntervalIFTTT = 100000L; // delay between http updates, in milliseconds. L forces long (100000 ms = 100 seconds or ~1.7 minutes)
+static unsigned long currentMillis_send = 0;  // dont think this one is used (0 ms = start of program)
+static unsigned long Lasttime_send = 0;       // last time you sent, used? (0 ms = never sent)
 
 
 
@@ -199,13 +199,20 @@ void loop()   // MAIN LOOP
   }
 
   delay(2000);
-  Serial.println("LOOP");
   read_value();
 
-  //serial print sensor values
-  Serial.println(moisture1_value);
-  Serial.println(moisture2_value);
-  Serial.println(moisture3_value);
+  // Print sensor values in a table format
+  Serial.print("LOOP | ");
+  Serial.print(String(moisture1_value).length() < 2 ? " " : "");
+  Serial.print(moisture1_value);
+  Serial.print(" | ");
+  Serial.print(String(moisture2_value).length() < 2 ? " " : "");
+  Serial.print(moisture2_value);
+  Serial.print(" | ");
+  Serial.print(String(moisture3_value).length() < 2 ? " " : "");
+  Serial.print(moisture3_value);
+  Serial.print(" | ");
+  Serial.print(String(moisture4_value).length() < 2 ? " " : "");
   Serial.println(moisture4_value);
 
   // HTTP GET/POST CONNECTIONS ADAFRUIT (Spam Protected, 10s posting time)
@@ -286,13 +293,27 @@ void loop()   // MAIN LOOP
 // READ MOISTURE VALUE
 void read_value()
 {
-  /************These is for capacity moisture sensor*********/
-  float value1 = analogRead(A0);
-  moisture1_value = map(value1, 590, 360, 0, 100); delay(20); //MAP probably normalizes it from sensor ticks to %, wait 20s
+  // Hardware notes:
+  // Each moisture sensor is connected via a 4-pin analog JST connector
+  // PIN layout:
+  // RED = GROUND
+  // BLACK = VCC (5V) (a crime I KNOW)
+  // WHITE = SENSOR SIGNAL (connected to analog pins A0, A1, A2, A3)
+  // Note: The fourth pin is not used in this setup
+
+  // ON New Capacitive Moisture Sensor: (THE RIGHT WAY)
+  // RED = VCC
+  // BLACK = GROUND
+  // YELLOW = SENSOR SIGNAL
+
+
+  /************These is for capacitive moisture sensor*********/
+  float value1 = analogRead(A1);
+  moisture1_value = map(value1, 600, 360, 0, 100); delay(20); //MAP probably normalizes it from sensor ticks to %, wait 20s
   if (moisture1_value < 0) {                               //avoid negative value cases
     moisture1_value = 0;
   }
-  float value2 = analogRead(A1);
+  float value2 = analogRead(A0);
   moisture2_value = map(value2, 600, 360, 0, 100); delay(20);
   if (moisture2_value < 0) {
     moisture2_value = 0;
@@ -307,6 +328,7 @@ void read_value()
   if (moisture4_value < 0) {
     moisture4_value = 0;
   }
+  // A4 is also available
 }
 
 
@@ -433,12 +455,9 @@ void water_plants()
 // and POSTS to an IO feed
 void httpPostRequestAdafeed(int value, String feed)
 {
-  // close any connection before send a new request
   client.stop();
   char server[] = "io.adafruit.com";
 
-  // prep value to send in data
-  Serial.println(value);
   String data = "{\n\"value\": " + String(value) + "\n}";
 
   Serial.println("Preparing to send POST request to Adafruit IO");
@@ -447,16 +466,13 @@ void httpPostRequestAdafeed(int value, String feed)
   Serial.print("Feed: ");
   Serial.println(feed);
   Serial.print("Data to send: ");
-  // Remove first and last characters, then manually replace newlines
   String printData = data.substring(1, data.length() - 1);
   printData.replace('\n', ' ');
   Serial.println(printData);
 
-  // if there's a successful connection
   if (client.connect(server, 80)) {
-    Serial.println("Connecting...");
+    Serial.println("Connected to server");
 
-    //send the HTTP POST request
     String poststring = "POST /api/v2/jpriebe/feeds/" + feed + "/data HTTP/1.1";
     client.println(poststring);
     client.println(F("Host: io.adafruit.com"));
@@ -465,18 +481,31 @@ void httpPostRequestAdafeed(int value, String feed)
     client.println(F("Content-Type: application/json"));
     client.print("Content-Length: ");
     client.println(String(data.length()));
-    client.println(); // end http header
+    client.println();
     client.println(data);
 
-    Serial.println("POST request sent. Waiting for response...");
+    Serial.println("POST request sent.");
+    
+    // Wait a short time for any immediate error response
+    delay(100);
 
-    // note the time that the connection was made
+    if (client.available()) {
+      Serial.println("Received immediate response:");
+      while (client.available()) {
+        Serial.write(client.read());
+      }
+    } else {
+      Serial.println("No immediate response received. Assuming successful POST.");
+    }
+
     lastConnectionTime = millis();
   }
   else {
-    // if you couldn't make a connection
     Serial.println("Connection failed");
   }
+
+  client.stop();
+  Serial.println("Connection closed");
 }
 
 
@@ -484,119 +513,56 @@ void httpPostRequestAdafeed(int value, String feed)
 // this method makes a HTTP connection to the server
 // and GETs an IO feed value
 // returns: value(int) if found or -1 if not
-int httpGetRequest(String feed, int maxRetries)
-{
+int httpGetRequest(String feed, int maxRetries) {
   for (int retry = 0; retry < maxRetries; retry++) {
-    // Reset ESP8266 module
-    WiFi.reset();
-    delay(1000);
-
-    // Reconnect to WiFi if necessary
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Reconnecting to WiFi...");
-      WiFi.begin(ssid, pass);
-      unsigned long startAttemptTime = millis();
-      while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
-        delay(500);
-        Serial.print(".");
-      }
-      if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("Failed to connect to WiFi");
-        continue;
-      }
-      Serial.println("Connected to WiFi");
-    }
-
     client.stop();
-    char server[] = "io.adafruit.com";
+    const char* server = "io.adafruit.com";
 
-    String response = "";
-    String line = "";
-    String val = "";
-    int charcount = 0;
-    int foundresp = 0;
-    int quit = 0;
-
-    // if there's a successful connection
+    Serial.println("Attempting to connect to Adafruit IO...");
     if (client.connect(server, 80)) {
-      Serial.println("Connection Successful.");
-      Serial.println("Sending HTTP GET:");
-      String getstring = "GET /api/v2/jpriebe/feeds/" + feed + "/data?limit=1 HTTP/1.1";
-      Serial.println(getstring);
+      Serial.println("Connected to Adafruit IO.");
+      
+      String getRequest = "GET /api/v2/jpriebe/feeds/" + feed + "/data?limit=1 HTTP/1.1";
+      client.println(getRequest);
+      client.println("Host: io.adafruit.com");
+      client.println("X-AIO-Key: 8c039146eedd4d65a83333349cbdab74");
+      client.println("Connection: close");
+      client.println();
 
-      // send the HTTP GET request
-      client.println(getstring);
-      client.println(F("Host: io.adafruit.com"));
-      client.println(F("X-AIO-Key: 8c039146eedd4d65a83333349cbdab74"));
-      client.println(F("Connection: close"));
-      client.println(); // end http header
-      delay(110); //Need this delay to give server time to respond. 50-300 seems ok.
-
-      while ((client.connected()) && (quit == 0)) { //client.available checks if there are bytes to read
-        char c = client.read();
-        if (foundresp == 1) { //if body flag is on
-          response.concat(c);
+      Serial.println("GET request sent. Waiting for response...");
+      
+      unsigned long timeout = millis();
+      while (client.available() == 0) {
+        if (millis() - timeout > 5000) {
+          Serial.println(">>> Client Timeout !");
+          client.stop();
+          delay(1000);
+          break;
         }
-        if (c == 91) { //set body flag for [
-          foundresp = 1;
-        }
-        else if (c == 93) { //close body flag for ]
-          foundresp = 0;
-          quit = 1;
-        }
-
-        charcount++;
       }
-
-      Serial.println("Done. Disconnecting");
-      client.stop();
-
-      Serial.println("");
-      Serial.println("SAVED BODY: ");
-      Serial.print("character count: ");
-      Serial.println(charcount);
-      Serial.print("saved response length: ");
-      Serial.println(response.length());
-      Serial.println(response);
-      Serial.println("");
-      Serial.println("END. ");
-      Serial.println("");
-
-      // note the time that the connection was made
-      lastConnectionTime = millis();
-
-      //read response and extract value
-
-      Serial.print("Finding Value: ");
-      Serial.println(response.indexOf("value"));
-
-      //end value
-      int startdig = 0;
-      int enddig = 0;
-
-      //find location of value, flexible for different number of digits
-      startdig = response.indexOf("value") + 8;
-      enddig = response.indexOf("\",", startdig + 1); //skip over first parenth
-
-      //if value isn't found
-      if (response.indexOf("value") == -1) {
-        Serial.println("ERROR: No return value");
-        return -1;
-      }//else if value is found, return
-      else {
-        val = response.substring(startdig, enddig); //ASSUMES 2 digit
-        Serial.println("VALUE: " + feed + ": " + val);
-        return val.toInt();
+      
+      if (client.available()) {
+        String statusLine = client.readStringUntil('\r');
+        Serial.println("Response status: " + statusLine);
+        
+        // Print the full response for debugging
+        Serial.println("Full response:");
+        while (client.available()) {
+          String line = client.readStringUntil('\r');
+          Serial.println(line);
+        }
+        
+        if (statusLine.indexOf("200 OK") > 0) {
+          Serial.println("Received 200 OK response");
+          client.stop();
+          return 0; // Success
+        }
       }
     }
-    else {
-      // if you couldn't make a connection
-      Serial.println("Connection failed");
-    }
+    Serial.println("Connection failed or invalid response. Retrying...");
+    delay(1000);
   }
-
-  // If all retries failed
-  return -1;
+  return -1; // Failed after all retries
 }
 
 

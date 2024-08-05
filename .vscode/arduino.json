@@ -1,7 +1,7 @@
 {
     "sketch": "auto_garden_v2/auto_garden_v2.ino",
     "board": "arduino:avr:leonardo",
-    "port": "/dev/tty.usbmodem2101",
+    "port": "/dev/tty.usbmodem101",
     "output": "/Users/joshpriebe/Documents/AI/autoGarden/build",
     "programmer": "arduinoasisp",
     "configFile": "~/.arduino15/arduino-cli.yaml",

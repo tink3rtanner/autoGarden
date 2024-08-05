@@ -1,0 +1,50 @@
+{
+    "name": "Adafruit IO POST Request",
+    "requests": [
+        {
+            "name": "Send Data to Adafruit Feed",
+            "method": "POST",
+            "url": "http://io.adafruit.com/api/v2/{{username}}/feeds/{{feed}}/data",
+            "headers": [
+                {
+                    "key": "Host",
+                    "value": "io.adafruit.com"
+                },
+                {
+                    "key": "X-AIO-Key",
+                    "value": "{{aio_key}}"
+                },
+                {
+                    "key": "Connection",
+                    "value": "keep-alive"
+                },
+                {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                }
+            ],
+            "body": {
+                "mode": "raw",
+                "raw": "{\n    \"value\": {{value}}\n}"
+            }
+        }
+    ],
+    "variables": [
+        {
+            "name": "username",
+            "value": "your_username"
+        },
+        {
+            "name": "feed",
+            "value": "your_feed_name"
+        },
+        {
+            "name": "aio_key",
+            "value": "your_aio_key"
+        },
+        {
+            "name": "value",
+            "value": 0
+        }
+    ]
+}
