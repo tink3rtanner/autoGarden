@@ -518,11 +518,20 @@ int httpGetRequest(String feed, int maxRetries) {
     client.stop();
     const char* server = "io.adafruit.com";
 
+    Serial.println("--------------------");
+    Serial.print("GET Request Attempt: ");
+    Serial.println(retry + 1);
+    Serial.print("Feed: ");
+    Serial.println(feed);
+
     Serial.println("Attempting to connect to Adafruit IO...");
     if (client.connect(server, 80)) {
       Serial.println("Connected to Adafruit IO.");
       
-      String getRequest = "GET /api/v2/jpriebe/feeds/" + feed + "/data?limit=1 HTTP/1.1";
+      String getRequest = "GET /api/v2/jpriebe/feeds/" + feed + "/data/last HTTP/1.1";
+      Serial.println("Sending GET request:");
+      Serial.println(getRequest);
+      
       client.println(getRequest);
       client.println("Host: io.adafruit.com");
       client.println("X-AIO-Key: 8c039146eedd4d65a83333349cbdab74");
@@ -536,32 +545,37 @@ int httpGetRequest(String feed, int maxRetries) {
         if (millis() - timeout > 5000) {
           Serial.println(">>> Client Timeout !");
           client.stop();
-          delay(1000);
+          delay(100);
           break;
         }
       }
       
       if (client.available()) {
-        String statusLine = client.readStringUntil('\r');
-        Serial.println("Response status: " + statusLine);
+        String response = client.readString();
+        Serial.println("Response received:");
+        Serial.println(response);
         
-        // Print the full response for debugging
-        Serial.println("Full response:");
-        while (client.available()) {
-          String line = client.readStringUntil('\r');
-          Serial.println(line);
-        }
-        
-        if (statusLine.indexOf("200 OK") > 0) {
-          Serial.println("Received 200 OK response");
+        int valueStart = response.indexOf("\"value\":") + 8;
+        int valueEnd = response.indexOf("}", valueStart);
+        if (valueStart > 8 && valueEnd > valueStart) {
+          String valueStr = response.substring(valueStart, valueEnd);
+          valueStr.trim();
+          int value = valueStr.toInt();
           client.stop();
-          return 0; // Success
+          return value;
+        } else {
+          Serial.println("Failed to parse value from response");
         }
+      } else {
+        Serial.println("No response received");
       }
+    } else {
+      Serial.println("Connection failed");
     }
-    Serial.println("Connection failed or invalid response. Retrying...");
-    delay(1000);
+    Serial.println("Retrying...");
+    delay(1000); // Wait a second before retrying
   }
+  Serial.println("Failed after all retries");
   return -1; // Failed after all retries
 }
 
